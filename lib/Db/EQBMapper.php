@@ -69,6 +69,7 @@ abstract class EQBMapper extends QBMapper
                 foreach ($qb->fetchAll() as $row) {
                     $values[$row['rid']] = $row['value'];
                 }
+                unset($row);
                 $setter = 'set' . ucfirst($field);
                 $entity->$setter($values);
             }
@@ -76,6 +77,7 @@ abstract class EQBMapper extends QBMapper
                 $qb->closeCursor();
             }
         }
+        unset($v);
         $entity->resetUpdatedRelationalFields();
         return $entity;
     }
@@ -102,6 +104,7 @@ abstract class EQBMapper extends QBMapper
                 $qb->closeCursor();
             }
         }
+        unset($v);
     }
 
     /**
@@ -135,7 +138,9 @@ abstract class EQBMapper extends QBMapper
                     $qb->closeCursor();
                 }
             }
+            unset($value);
         }
+        unset($v);
     }
 
     /**
@@ -150,7 +155,7 @@ abstract class EQBMapper extends QBMapper
         $qb->select('id')
         ->from($this->getTableName())
         ->where(
-            $qb->expr()->eq($field, $qb->createNamedParameter($value), $type)
+            $qb->expr()->eq($field, $qb->createNamedParameter($value, $type))
         );
         $qb = $qb->execute();
         if (!is_int($qb)) {

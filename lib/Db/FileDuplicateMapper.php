@@ -55,37 +55,9 @@ class FileDuplicateMapper extends EQBMapper
             foreach ($orderBy as $order) {
                 $qb->addOrderBy($order[0], isset($order[1]) ? $order[1] : null);
             }
+            unset($order);
         }
         return $this->findEntities($qb);
-    }
-
-  /**
-   * @return array<FileDuplicate>
-   */
-    public function findByDuplicate(int $duplicateId):array
-    {
-        $qb = $this->db->getQueryBuilder();
-        $qb->select('*')
-        ->from($this->getTableName().'_f')
-        ->where(
-            $qb->expr()->eq('rid', $qb->createNamedParameter($duplicateId, IQueryBuilder::PARAM_INT))
-        );
-        $qb = $qb->execute();
-        $duplicates = [];
-        if (is_int($qb)) {
-            return $duplicates;
-        }
-        foreach ($qb->fetchAll() as $row) {
-            $fQB = $this->db->getQueryBuilder();
-            $fQB->select('*')
-            ->from($this->getTableName())
-            ->where(
-                $fQB->expr()->eq('id', $fQB->createNamedParameter($row['id'], IQueryBuilder::PARAM_INT))
-            );
-            $duplicates[] = $this->findEntity($fQB);
-        }
-        $qb->closeCursor();
-        return $duplicates;
     }
 
     public function clear(?string $table = null):void

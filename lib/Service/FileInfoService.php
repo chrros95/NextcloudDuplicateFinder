@@ -1,26 +1,24 @@
 <?php
 namespace OCA\DuplicateFinder\Service;
 
-use OCP\IUser;
-use OCP\ILogger;
+use Psr\Log\LoggerInterface;
 use OCP\IDBConnection;
-use OCP\IConfig;
-use OCP\AppFramework\Db\Entity;
-use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Files\Node;
-use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
-use OC\Files\Utils\Scanner;
+use OC\User\NoUserException;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use OCA\DuplicateFinder\AppInfo\Application;
 use OCA\DuplicateFinder\Db\FileInfo;
 use OCA\DuplicateFinder\Db\FileInfoMapper;
 use OCA\DuplicateFinder\Event\CalculatedHashEvent;
+use OCA\DuplicateFinder\Event\UpdatedFileInfoEvent;
 use OCA\DuplicateFinder\Event\NewFileInfoEvent;
 use OCA\DuplicateFinder\Exception\ForcedToIgnoreFileException;
+use OCA\DuplicateFinder\Exception\UnableToCalculateHash;
+use OCA\DuplicateFinder\Utils\CMDUtils;
+use OCA\DuplicateFinder\Utils\ScannerUtil;
 
 class FileInfoService
 {
@@ -29,29 +27,33 @@ class FileInfoService
     private $eventDispatcher;
     /** @var FileInfoMapper */
     private $mapper;
-    /** @var IRootFolder */
-    private $rootFolder;
-    /** @var ILogger */
+    /** @var LoggerInterface */
     private $logger;
-    /** @var IDBConnection */
-    private $connection;
-    /** @var IConfig */
-    private $config;
+    /** @var ShareService */
+    private $shareService;
+    /** @var FolderService */
+    private $folderService;
+    /** @var FilterService */
+    private $filterService;
+    /** @var ScannerUtil */
+    private $scannerUtil;
 
     public function __construct(
         FileInfoMapper $mapper,
-        IRootFolder $rootFolder,
         IEventDispatcher $eventDispatcher,
-        ILogger $logger,
-        IDBConnection $connection,
-        IConfig $config
+        LoggerInterface $logger,
+        ShareService $shareService,
+        FolderService $folderService,
+        FilterService $filterService,
+        ScannerUtil $scannerUtil
     ) {
         $this->mapper = $mapper;
-        $this->rootFolder = $rootFolder;
         $this->eventDispatcher = $eventDispatcher;
         $this->logger = $logger;
-        $this->connection = $connection;
-        $this->config = $config;
+        $this->shareService = $shareService;
+        $this->folderService = $folderService;
+        $this->filterService = $filterService;
+        $this->scannerUtil = $scannerUtil;
     }
 
     /**
@@ -59,7 +61,7 @@ class FileInfoService
      */
     public function enrich(FileInfo $fileInfo):FileInfo
     {
-        $node = $this->getNode($fileInfo);
+        $node = $this->folderService->getNodeByFileInfo($fileInfo);
         $fileInfo->setNodeId($node->getId());
         $fileInfo->setMimetype($node->getMimetype());
         $fileInfo->setSize($node->getSize());
@@ -76,6 +78,7 @@ class FileInfoService
             foreach ($entities as $entity) {
                 $entity = $this->enrich($entity);
             }
+            unset($entity);
         }
         return $entities;
     }
@@ -138,13 +141,14 @@ class FileInfoService
         try {
             $fileInfo = $this->mapper->find($path, $fallbackUID);
             $fileInfo = $this->update($fileInfo, $fallbackUID);
+            $this->eventDispatcher->dispatchTyped(new UpdatedFileInfoEvent($fileInfo, $fallbackUID));
         } catch (\Exception $e) {
             $fileInfo = new FileInfo($path);
             $fileInfo = $this->updateFileMeta($fileInfo, $fallbackUID);
             $fileInfo->setKeepAsPrimary(true);
             $fileInfo = $this->mapper->insert($fileInfo);
             $fileInfo->setKeepAsPrimary(false);
-            $this->eventDispatcher->dispatchTyped(new NewFileInfoEvent($fileInfo));
+            $this->eventDispatcher->dispatchTyped(new NewFileInfoEvent($fileInfo, $fallbackUID));
         }
         return $fileInfo;
     }
@@ -162,12 +166,7 @@ class FileInfoService
 
     public function updateFileMeta(FileInfo $fileInfo, ?string $fallbackUID = null) : FileInfo
     {
-        $file = $this->getNode($fileInfo, $fallbackUID);
-        // Default should be false but isn't supported by the api
-        $ignoreMountedFiles = $this->config->getAppValue(Application::ID, 'ignore_mounted_files', '');
-        if ($file->isMounted() && $ignoreMountedFiles) {
-            throw new ForcedToIgnoreFileException($fileInfo, 'app:ignore_mounted_files');
-        }
+        $file = $this->folderService->getNodeByFileInfo($fileInfo, $fallbackUID);
         $fileInfo->setSize($file->getSize());
         $fileInfo->setMimetype($file->getMimetype());
         try {
@@ -176,32 +175,53 @@ class FileInfoService
             if (!is_null($fallbackUID)) {
                 $fileInfo->setOwner($fallbackUID);
             } elseif (!$fileInfo->getOwner()) {
-                    throw $e;
+                throw $e;
             }
         }
+        $fileInfo->setIgnored($this->filterService->isIgnored($fileInfo, $file));
         return $fileInfo;
     }
 
-    public function calculateHashes(FileInfo $fileInfo, ?string $fallbackUID = null):FileInfo
+    /**
+     * @return false|string
+     */
+    public function isRecalculationRequired(FileInfo $fileInfo, ?string $fallbackUID = null, ?Node $file = null)
+    {
+        if ($fileInfo->isIgnored()) {
+            return false;
+        }
+        if (is_null($file)) {
+            $file = $this->folderService->getNodeByFileInfo($fileInfo, $fallbackUID);
+        }
+        if ($file->getType() === \OCP\Files\FileInfo::TYPE_FILE
+          && ( empty($fileInfo->getFileHash())
+               || $file->getMtime() > $fileInfo->getUpdatedAt()->getTimestamp()
+               || $file->getUploadTime() > $fileInfo->getUpdatedAt()->getTimestamp())
+          || $file->isMounted()) {
+            return $file->getInternalPath();
+        }
+        return false;
+    }
+
+    public function calculateHashes(FileInfo $fileInfo, ?string $fallbackUID = null, bool $requiresHash = true):FileInfo
     {
         $oldHash = $fileInfo->getFileHash();
-        $file = $this->getNode($fileInfo, $fallbackUID);
-        if ($file->getType() === \OCP\Files\FileInfo::TYPE_FILE
-          && ( empty($oldHash)
-        || $file->getMtime() >
-          $fileInfo->getUpdatedAt()->getTimestamp()
-        || $file->getUploadTime() >
-          $fileInfo->getUpdatedAt()->getTimestamp())
-        || $file->isMounted()) {
-             $hash = $file->getStorage()->hash('sha256', $file->getInternalPath());
-            if (!is_bool($hash)) {
-                $fileInfo->setFileHash($hash);
-                $fileInfo->setUpdatedAt(new \DateTime());
-                $this->update($fileInfo);
-                $this->eventDispatcher->dispatchTyped(new CalculatedHashEvent($fileInfo, $oldHash));
+        $file = $this->folderService->getNodeByFileInfo($fileInfo, $fallbackUID);
+        $path = $this->isRecalculationRequired($fileInfo, $fallbackUID, $file);
+        if ($path !== false) {
+            if ($requiresHash) {
+                $hash = $file->getStorage()->hash('sha256', $path);
+                if (!is_bool($hash)) {
+                    $fileInfo->setFileHash($hash);
+                    $fileInfo->setUpdatedAt(new \DateTime());
+                } else {
+                    throw new UnableToCalculateHash($file->getInternalPath());
+                }
             } else {
-                throw new \Exception('Unable to calculate hash for '.$file->getInternalPath());
+                $fileInfo->setFileHash(null);
             }
+            $this->update($fileInfo, $fallbackUID);
+            $this->eventDispatcher->dispatchTyped(new CalculatedHashEvent($fileInfo, $oldHash));
         }
         return $fileInfo;
     }
@@ -210,107 +230,60 @@ class FileInfoService
         string $user,
         ?string $path = null,
         ?\Closure $abortIfInterrupted = null,
-        ?OutputInterface $output = null
+        ?OutputInterface $output = null,
+        ?bool $isShared = false
     ): void {
-        $userFolder = $this->rootFolder->getUserFolder($user);
+        $userFolder = $this->folderService->getUserFolder($user);
         $scanPath = $userFolder->getPath();
-        if (!is_null($path)) {
+        if (!is_null($path) && !$isShared) {
             $scanPath .= DIRECTORY_SEPARATOR.ltrim($path, DIRECTORY_SEPARATOR);
             if (!$userFolder->nodeExists(ltrim($path, DIRECTORY_SEPARATOR))) {
-                if ($output) {
-                    $output->writeln(
-                        'Skipped '.$scanPath.' because it doesn\'t exists.',
-                        OutputInterface::VERBOSITY_VERBOSE
-                    );
-                }
+                CMDUtils::showIfOutputIsPresent(
+                    'Skipped '.$scanPath.' because it doesn\'t exists.',
+                    $output,
+                    OutputInterface::VERBOSITY_VERBOSE
+                );
                 return;
             }
-        }
-        $scanner = new Scanner($user, $this->connection, $this->eventDispatcher, $this->logger);
-        $scanner->listen(
-            '\OC\Files\Utils\Scanner',
-            'postScanFile',
-            function ($path) use ($abortIfInterrupted, $output, $user) {
-                if (!is_null($output)) {
-                    $output->writeln('Scanning '.$path, OutputInterface::VERBOSITY_VERBOSE);
-                }
-                try {
-                    $fileInfo = $this->save($path, $user);
-                } catch (NotFoundException $e) {
-                    $this->logger->logException($e, ['app' => 'duplicatefinder']);
-                    if ($output) {
-                        $output->writeln('<error>The given path doesn\'t exists.</error>');
-                    }
-                } catch (ForcedToIgnoreFileException $e) {
-                    $this->logger->info($e->getMessage(), ['exception'=> $e]);
-                    if ($output) {
-                        $output->writeln('Skipped '.$path, OutputInterface::VERBOSITY_VERBOSE);
-                    }
-                }
-                if ($abortIfInterrupted) {
-                    $abortIfInterrupted();
-                }
-                // Ensure that every scanned file is commited - not only after all files are scanned
-                if ($this->connection->inTransaction()) {
-                    $this->connection->commit();
-                    $this->connection->beginTransaction();
-                }
+        } elseif ($isShared) {
+            if (is_null($path)) {
+                return;
             }
-        );
-        if ($output) {
-            $output->writeln('Start searching files for '.$user.' in path '.$scanPath);
+            $scanPath = $path;
         }
 
         try {
-            $scanner->scan($scanPath, true);
+            $this->scannerUtil->setHandles($this, $output, $abortIfInterrupted);
+            $this->scannerUtil->scan($user, $scanPath);
         } catch (NotFoundException $e) {
-            $this->logger->logException($e, ['app' => 'duplicatefinder']);
-            if ($output) {
-                $output->writeln('<error>The given scan path doesn\'t exists.</error>');
-            }
-        }
-        if ($output) {
-            $output->writeln('Finished searching files');
+            $this->logger->error('The given scan path doesn\'t exists.', ['app' => Application::ID, 'exception' => $e]);
+            CMDUtils::showIfOutputIsPresent(
+                '<error>The given scan path doesn\'t exists.</error>',
+                $output
+            );
         }
     }
 
-    /*
-     *  The Node specified by the FileInfo isn't always in the cache.
-        *  if so, a get on the root folder will raise an |OCP\Files\NotFoundException
-        *  To avoid this, it is first tried to get the Node by the user folder. Because
-        *  the user folder supports lazy loading, it works even if the file isn't in the cache
-     *  If the owner is unknown, it is at least tried to get the Node from the root folder
-     */
-    public function getNode(FileInfo $fileInfo, ?string $fallbackUID = null): Node
+    public function hasAccessRight(FileInfo $fileInfo, string $user) : ?FileInfo
     {
-        $userFolder = null;
-        if ($fileInfo->getOwner()) {
-            $userFolder = $this->rootFolder->getUserFolder($fileInfo->getOwner());
-        } elseif (!is_null($fallbackUID)) {
-            $userFolder = $this->rootFolder->getUserFolder($fallbackUID);
-            $fileInfo->setOwner($fallbackUID);
-        }
-        if (!is_null($userFolder)) {
-            try {
-                $relativePath = $this->getPathRelativeToUserFolder($fileInfo);
-                return $userFolder->get($relativePath);
-            } catch (NotFoundException $e) {
-            }
-        }
-        return $this->rootFolder->get($fileInfo->getPath());
-    }
-
-    /*
-     *  This method should only be called if the owner of the Node has already stored
-     *  in the owner property
-     */
-    public function getPathRelativeToUserFolder(FileInfo $fileInfo) : string
-    {
-        if ($fileInfo->getOwner()) {
-            $userFolder = $this->rootFolder->getUserFolder($fileInfo->getOwner());
-            return substr($fileInfo->getPath(), strlen($userFolder->getPath()));
+        $result = null;
+        if ($fileInfo->getOwner() === $user) {
+            $result = $fileInfo;
         } else {
-            throw new \Exception('The owner of '.$fileInfo->getPath().' is not set');
+            try {
+                $path = $this->shareService->hasAccessRight(
+                    $this->folderService->getNodeByFileInfo($fileInfo, $user),
+                    $user
+                );
+                if (!is_null($path)) {
+                    $fileInfo->setPath($path);
+                    $result = $fileInfo;
+                }
+            } catch (NoUserException | NotFoundException $e) {
+                $result = null;
+            }
         }
+        
+        return $result;
     }
 }

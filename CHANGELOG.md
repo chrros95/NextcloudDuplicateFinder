@@ -1,3 +1,17 @@
+## 0.0.15
+- Fix #72 #80 #82 #84
+- Catch NoUserException from shared files from Talk
+- Fix mismatched setting descriptions for intervals
+## 0.0.14
+- Support NC24
+- Ignore files
+- Interval configuration
+- Add config
+## 0.0.13
+- Support NC23
+- Fix #52
+- Fix #54
+- Fix #55
 ## 0.0.12 (Author : @chrros95)
 - Add an option to ignore external files
 - Fix NotFoundExceptions
