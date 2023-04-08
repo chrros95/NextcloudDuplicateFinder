@@ -3,7 +3,6 @@
 namespace OCA\DuplicateFinder\Service;
 
 use OCP\IConfig;
-use Psr\Log\LoggerInterface;
 use OCA\DuplicateFinder\AppInfo\Application;
 use OCA\DuplicateFinder\Exception\UnableToParseException;
 

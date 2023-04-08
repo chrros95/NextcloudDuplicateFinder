@@ -37,14 +37,14 @@ class FileDuplicateService {
 		uasort($files, function (FileInfo|string $a, FileInfo|string $b) {
 			if (!is_string($a)) {
 				$tmp_a = $a->getPath();
-			}else {
-                $tmp_a = $a;
-            }
+			} else {
+				$tmp_a = $a;
+			}
 			if (!is_string($b)) {
 				$tmp_b = $b->getPath();
-			}else{
-                $tmp_b = $b;
-            }
+			} else {
+				$tmp_b = $b;
+			}
 			return strnatcmp($tmp_a, $tmp_b);
 		});
 		$duplicate->setFiles(array_values($files));
