@@ -7,6 +7,7 @@ use OCP\Files\NotFoundException;
 use OCA\DuplicateFinder\Service\FileInfoService;
 use OCA\DuplicateFinder\Service\ConfigService;
 use OCA\DuplicateFinder\Service\FolderService;
+use OCP\AppFramework\Utility\ITimeFactory;
 
 class CleanUpDB extends \OCP\BackgroundJob\TimedJob {
 	/** @var FileInfoService*/
@@ -21,11 +22,13 @@ class CleanUpDB extends \OCP\BackgroundJob\TimedJob {
 	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
+		ITimeFactory $time,
 		FileInfoService $fileInfoService,
 		LoggerInterface $logger,
 		ConfigService $config,
 		FolderService $folderService
 	) {
+		parent::__construct($time);
 		$this->setInterval($config->getCleanupJobInterval());
 		$this->fileInfoService = $fileInfoService;
 		$this->folderService = $folderService;

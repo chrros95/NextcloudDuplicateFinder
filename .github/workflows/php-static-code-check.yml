@@ -3,17 +3,17 @@
 name: PHP Static Code analysis
 on:
   push:
-    paths: '**.php'
+    paths: ["**.php"]
   pull_request:
-    paths: '**.php'
+    paths: ["**.php"]
 jobs:
   static-phpstan-analysis:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php-versions: [ '7.4' ]
-        nextcloud: [ 'stable21' ]
-        database: [ 'sqlite' ]
+        php-versions: ["8.2"]
+        nextcloud: ["stable26"]
+        database: ["sqlite"]
     name: "phpstan: DuplicateFinder - Nextcloud Version ${{ matrix.nextcloud }}"
     steps:
       - name: Checkout
@@ -21,7 +21,7 @@ jobs:
       - name: Set up php
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 7.4
+          php-version: 8.2
           extensions: pdo_sqlite,pdo_mysql,pdo_pgsql,gd,zip
           coverage: none
 
@@ -38,7 +38,7 @@ jobs:
       - name: Configure server with app
         uses: SMillerDev/nextcloud-actions/setup-nextcloud-app@main
         with:
-          app: 'duplicatefinder'
+          app: "duplicatefinder"
           force: true
 
       - name: PHPUnit

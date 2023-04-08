@@ -3,9 +3,9 @@
 name: Integration Tests
 on:
   push:
-    paths: '**.php'
+    paths: ["**.php"]
   pull_request:
-    paths: '**.php'
+    paths: ["**.php"]
   workflow_dispatch:
 env:
   DB_USER: root
@@ -33,8 +33,8 @@ jobs:
         ports:
           - 5432:5432
       mariadb:
-         # Nextcloud Requires compressed tables which are not supported in 10.6 (nextcloud/server #25436)
-        image: mariadb:10.5
+        # Nextcloud Requires compressed tables which are not supported in 10.6 (nextcloud/server #25436)
+        image: mariadb:10.6
         ports:
           - 3306:3306
         env:
@@ -42,7 +42,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: ${{ env.DB_PASSWORD }}
         options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
       mysql:
-         # Nextcloud Requires compressed tables which are not supported in 10.6 (nextcloud/server #25436)
+        # Nextcloud Requires compressed tables which are not supported in 10.6 (nextcloud/server #25436)
         image: chrros95/mysql
         ports:
           - 3307:3306
@@ -54,24 +54,24 @@ jobs:
       external-storage:
         image: chrros95/external-storage-test
         ports:
-            - 20:20
-            - 21:21
-            - 80:80
-            - 139:139
-            - 445:445
-            - 30000-30200:30000-30200
+          - 20:20
+          - 21:21
+          - 80:80
+          - 139:139
+          - 445:445
+          - 30000-30200:30000-30200
     strategy:
       matrix:
-        php-versions: ['7.3', '7.4']
-        nextcloud: ['stable20', 'stable21', 'stable22']
-        database: ['sqlite', 'pgsql', 'mysql','mariadb']
+        php-versions: ["7.4", "8.1", "8.1", "8.2"]
+        nextcloud: ["stable24", "stable25", "stable26"]
+        database: ["sqlite", "pgsql", "mysql", "mariadb"]
         experimental: [false]
         include:
-          - php-versions: 7.4
+          - php-versions: 8.2
             nextcloud: pre-release
             database: sqlite
             experimental: true
-          - php-versions: "8.0"
+          - php-versions: 8.2
             nextcloud: pre-release
             database: sqlite
             experimental: true
@@ -120,7 +120,7 @@ jobs:
       - name: Configure server with app
         uses: SMillerDev/nextcloud-actions/setup-nextcloud-app@main
         with:
-          app: 'duplicatefinder'
+          app: "duplicatefinder"
           force: ${{ matrix.experimental }}
       - name: Functional tests maintenance
         working-directory: ../server
@@ -132,5 +132,5 @@ jobs:
         working-directory: ../server
         run: bats apps/duplicatefinder/tests/bats
         env:
-            DB_TYPE: ${{ matrix.dbtype || matrix.database }}
-            DB_PORT: ${{ matrix.dbport || 3306 }}
+          DB_TYPE: ${{ matrix.dbtype || matrix.database }}
+          DB_PORT: ${{ matrix.dbport || 3306 }}

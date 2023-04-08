@@ -40,7 +40,8 @@
 #    },
 
 app_name=$(notdir $(CURDIR))
-build_tools_directory=$(CURDIR)/build/tools
+tmp_dir=/tmp/nc_duplicatefinder
+build_tools_directory=$(tmp_dir)/build/tools
 source_build_directory=$(CURDIR)/build/artifacts/source
 source_package_name=$(source_build_directory)/$(app_name)
 appstore_build_directory=$(CURDIR)/build/artifacts/appstore
@@ -170,16 +171,26 @@ test: xmllint phpcbf phpcs phpstan phpunit
 
 .PHONY: phpunit
 phpunit: composer
-	$(CURDIR)/vendor/phpunit/phpunit/phpunit -c phpunit.xml --coverage-clover=coverage-result.xml --log-junit=execution-result.xml
-	sed -i 's@$(CURDIR)/@@' coverage-result.xml
+	$(CURDIR)/vendor/phpunit/phpunit/phpunit -c phpunit.xml --coverage-clover=$(tmp_dir)/coverage-result.xml --log-junit=$(tmp_dir)/execution-result.xml
+	if [ -f $(tmp_dir)/coverage-result.xml ]; then \
+		sed -i 's@$(CURDIR)/@@' $(tmp_dir)/coverage-result.xml ; \
+	fi
+	if [ -w "." ]; then \
+		mv -f $(tmp_dir)/coverage-result.xml ; \
+		mv -f $(tmp_dir)/execution-result.xml ; \
+	fi
 
 .PHONY: phpcbf
 phpcbf: composer
-	./vendor/bin/phpcbf --standard=PSR2 lib
+	if [ -w "./.php-cs-fixer.cache" ]; then \
+		composer cs:fix ; \
+	fi
 
 .PHONY: phpcs
 phpcs: composer
-	./vendor/bin/phpcs --standard=PSR2 lib
+	if [ -w "./.php-cs-fixer.cache" ]; then \
+		composer cs:check ; \
+	fi
 
 .PHONY: phpstan
 phpstan: composer

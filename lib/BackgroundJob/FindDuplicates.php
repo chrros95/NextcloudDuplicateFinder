@@ -2,13 +2,12 @@
 
 namespace OCA\DuplicateFinder\BackgroundJob;
 
-use OCP\EventDispatcher\IEventDispatcher;
-use Psr\Log\LoggerInterface;
 use OCP\IUserManager;
 use OCP\IUser;
 use OCP\IDBConnection;
 use OCA\DuplicateFinder\Service\FileInfoService;
 use OCA\DuplicateFinder\Service\ConfigService;
+use OCP\AppFramework\Utility\ITimeFactory;
 
 class FindDuplicates extends \OCP\BackgroundJob\TimedJob {
 	/** @var IUserManager */
@@ -24,11 +23,13 @@ class FindDuplicates extends \OCP\BackgroundJob\TimedJob {
 	 * @param FileInfoService $fileInfoService
 	 */
 	public function __construct(
+		ITimeFactory $time,
 		IUserManager $userManager,
 		IDBConnection $connection,
 		FileInfoService $fileInfoService,
 		ConfigService $config
 	) {
+		parent::__construct($time);
 		$this->setInterval($config->getFindJobInterval());
 		$this->userManager = $userManager;
 		$this->connection = $connection;
