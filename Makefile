@@ -71,17 +71,21 @@ endif
 .PHONY: composer
 composer:
 ifeq (, $(composer))
-	@echo "No composer command available, downloading a copy from the web"
-	export COMPOSER_HOME=$(composer_home); \
-	mkdir -p $(composer_home); \
-	curl -sS https://getcomposer.org/installer | php -- --install-dir=$(build_tools_directory) ; \
-	$(build_tools_directory)/composer.phar config --global home ; \
-	php $(build_tools_directory)/composer.phar install --prefer-dist ; \
-	php $(build_tools_directory)/composer.phar update --prefer-dist
+	if [ -w "./vendor" ]; then \
+		@echo "No composer command available, downloading a copy from the web"
+		export COMPOSER_HOME=$(composer_home); \
+		mkdir -p $(composer_home); \
+		curl -sS https://getcomposer.org/installer | php -- --install-dir=$(build_tools_directory) ; \
+		$(build_tools_directory)/composer.phar config --global home ; \
+		php $(build_tools_directory)/composer.phar install --prefer-dist ; \
+		php $(build_tools_directory)/composer.phar update --prefer-dist ; \
+	fi
 else
-	export COMPOSER_HOME=$(composer_home); \
-	composer install --prefer-dist; \
-	composer update --prefer-dist
+	if [ -w "./vendor" ]; then \
+		export COMPOSER_HOME=$(composer_home); \
+		composer install --prefer-dist; \
+		composer update --prefer-dist ; \
+	fi
 endif
 
 .PHONY: xmllint
