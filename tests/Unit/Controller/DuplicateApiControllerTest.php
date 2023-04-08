@@ -13,7 +13,6 @@ use OCA\DuplicateFinder\Controller\DuplicateApiController;
 use OCA\DuplicateFinder\Db\FileDuplicate;
 use OCA\DuplicateFinder\Db\FileInfo;
 use OCA\DuplicateFinder\Service\FileDuplicateService;
-use OCA\DuplicateFinder\Service\FileInfoService;
 
 class DuplicateApiControllerTest extends TestCase {
 	private function getMockService() {
@@ -45,7 +44,6 @@ class DuplicateApiControllerTest extends TestCase {
 			$this->createMock(IRequest::class),
 			$session,
 			$service,
-			$this->createMock(FileInfoService::class),
 			$this->createMock(LoggerInterface::class)
 		);
 	}
