@@ -1,4 +1,5 @@
 <?php
+
 namespace OCA\DuplicateFinder\Db;
 
 /**
@@ -23,49 +24,45 @@ namespace OCA\DuplicateFinder\Db;
  * @method int getSize()
  * @method bool isIgnored()
  */
-class FileInfo extends EEntity
-{
+class FileInfo extends EEntity {
+	/** @var string */
+	protected $owner;
+	/** @var string */
+	protected $path;
+	/** @var string */
+	protected $pathHash;
+	/** @var string */
+	protected $fileHash;
+	/** @var string */
+	protected $imageHash;
+	/** @var integer */
+	protected $updatedAt;
+	/** @var integer */
+	protected $nodeId;
+	/** @var string */
+	protected $mimetype;
+	/** @var integer */
+	protected $size;
+	/** @var boolean */
+	protected $ignored;
 
-    /** @var string */
-    protected $owner;
-    /** @var string */
-    protected $path;
-    /** @var string */
-    protected $pathHash;
-    /** @var string */
-    protected $fileHash;
-    /** @var string */
-    protected $imageHash;
-    /** @var integer */
-    protected $updatedAt;
-    /** @var integer */
-    protected $nodeId;
-    /** @var string */
-    protected $mimetype;
-    /** @var integer */
-    protected $size;
-    /** @var boolean */
-    protected $ignored;
+	public function __construct(?string $path = null, ?string $owner = null) {
+		$this->addInternalType('updatedAt', 'date');
+		$this->addInternalProperty('nodeId');
+		$this->addType('size', 'integer');
+		$this->addType('ignored', 'boolean');
 
-    public function __construct(?string $path = null, ?string $owner = null)
-    {
-        $this->addInternalType('updatedAt', 'date');
-        $this->addInternalProperty('nodeId');
-        $this->addType('size', 'integer');
-        $this->addType('ignored', 'boolean');
+		if (!is_null($path)) {
+			$this->setPath($path);
+		}
+		if (!is_null($owner)) {
+			$this->setOwner($owner);
+		}
+	}
 
-        if (!is_null($path)) {
-            $this->setPath($path);
-        }
-        if (!is_null($owner)) {
-            $this->setOwner($owner);
-        }
-    }
-
-    public function setPath(string $path):void
-    {
-        // SHA1 because we need a function to short the path and not be cryptographically secure
-        $this->setPathHash(sha1($path));
-        parent::setPath($path);
-    }
+	public function setPath(string $path): void {
+		// SHA1 because we need a function to short the path and not be cryptographically secure
+		$this->setPathHash(sha1($path));
+		parent::setPath($path);
+	}
 }

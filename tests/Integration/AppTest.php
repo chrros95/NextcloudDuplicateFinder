@@ -10,21 +10,17 @@ use PHPUnit\Framework\TestCase;
  * directly from the container, only pass in mocks if needed and run your tests
  * against the database
  */
-class AppTest extends TestCase
-{
+class AppTest extends TestCase {
+	private $container;
 
-    private $container;
+	public function setUp() : void {
+		parent::setUp();
+		$app = new App('duplicatefinder');
+		$this->container = $app->getContainer();
+	}
 
-    public function setUp() : void
-    {
-        parent::setUp();
-        $app = new App('duplicatefinder');
-        $this->container = $app->getContainer();
-    }
-
-    public function testAppInstalled()
-    {
-        $appManager = $this->container->query('OCP\App\IAppManager');
-        $this->assertTrue($appManager->isInstalled('duplicatefinder'));
-    }
+	public function testAppInstalled() {
+		$appManager = $this->container->query('OCP\App\IAppManager');
+		$this->assertTrue($appManager->isInstalled('duplicatefinder'));
+	}
 }
