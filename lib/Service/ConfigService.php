@@ -10,15 +10,11 @@ use OCA\DuplicateFinder\Exception\UnableToParseException;
 class ConfigService {
 	/** @var IConfig */
 	private $config;
-	/** @var LoggerInterface */
-	private $logger;
 
 	public function __construct(
-		IConfig $config,
-		LoggerInterface $logger
+		IConfig $config
 	) {
 		$this->config = $config;
-		$this->logger = $logger;
 	}
 
 	private function getIntVal(string $key, int $defaultValue): int {
@@ -55,7 +51,7 @@ class ConfigService {
 	}
 
 	/**
-	 * @return array<array>
+	 * @return array<array<mixed>>
 	 */
 	public function getIgnoreConditions(): array {
 		$unparsedConditions = $this->config->getAppValue(Application::ID, 'ignored_files', '[]');
@@ -83,7 +79,7 @@ class ConfigService {
 	}
 
 	/**
-	 * @param array<array> $value
+	 * @param array<array<mixed>> $value
 	 * @throws UnableToParseException
 	 */
 	public function setIgnoreConditions(array $value): void {

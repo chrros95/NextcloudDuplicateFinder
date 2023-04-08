@@ -13,7 +13,7 @@ class EEntity extends Entity implements JsonSerializable {
 	private $internalTypes = [];
 	/** @var array<mixed> */
 	private $relationalFields = [];
-	/** @var array<array> */
+	/** @var array<array<mixed>> */
 	private $changedRelations = [];
 	/** @var array<array<bool>> */
 	private $internalProperties = [
@@ -76,7 +76,7 @@ class EEntity extends Entity implements JsonSerializable {
 	}
 
 	/**
-	 * @return array<array>
+	 * @return array<array<mixed>>
 	 */
 	public function getUpdatedRelationalFields(?string $field = null): array {
 		if ($field !== null) {

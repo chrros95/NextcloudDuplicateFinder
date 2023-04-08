@@ -13,7 +13,7 @@ class FilterService {
 	private $logger;
 	/** @var ConfigService */
 	private $config;
-	/** @var array<array> */
+	/** @var array<array<mixed>> */
 	private $ignoreConditions;
 
 	public function __construct(
@@ -39,7 +39,7 @@ class FilterService {
 	}
 
 	/**
-	 * @param array<array> $conditions
+	 * @param array<array<mixed>> $conditions
 	 */
 	private function isCondtionFullfilled(array $conditions, FileInfo $fileInfo, Node $node): bool {
 		$result = true;

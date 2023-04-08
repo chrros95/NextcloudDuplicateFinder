@@ -8,24 +8,19 @@ use Psr\Log\LoggerInterface;
 use OCP\AppFramework\Http\JSONResponse;
 use OCA\DuplicateFinder\AppInfo\Application;
 use OCA\DuplicateFinder\Service\FileDuplicateService;
-use OCA\DuplicateFinder\Service\FileInfoService;
 
 class DuplicateApiController extends AbstractAPIController {
 	/** @var FileDuplicateService */
 	private $fileDuplicateService;
-	/** @var FileInfoService */
-	private $fileInfoService;
 
 	public function __construct(
 		$appName,
 		IRequest $request,
 		?IUserSession $userSession,
 		FileDuplicateService $fileDuplicateService,
-		FileInfoService $fileInfoService,
 		LoggerInterface $logger
 	) {
 		parent::__construct($appName, $request, $userSession, $logger);
-		$this->fileInfoService = $fileInfoService;
 		$this->fileDuplicateService = $fileDuplicateService;
 	}
 
