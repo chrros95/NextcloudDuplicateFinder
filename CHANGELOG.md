@@ -1,5 +1,5 @@
 ## 0.0.16
-- Support for NC25, NC26, NC27
+- Support for NC25
 ## 0.0.15
 - Fix #72 #80 #82 #84
 - Catch NoUserException from shared files from Talk
